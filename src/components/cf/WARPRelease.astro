@@ -1,0 +1,216 @@
+---
+// CF source: src/components/WARPRelease.astro. Select + Download restyled for nimbus.
+import Details from "./Details.astro";
+import { renderMarkdown } from "~/util/markdown";
+import { z } from "astro/zod";
+import prettyBytes from "pretty-bytes";
+import { warpReleasesSchema } from "~/schemas";
+import platforms from "~/util/warp-platforms.json";
+import Icon from "@cloudflare/nimbus-docs/components/Icon.astro";
+import { LinkButton } from "@/components/ui/link-button";
+
+type Props = z.infer<typeof props>;
+
+const props = z.object({
+	header: z.string(),
+	open: z.boolean().optional(),
+	release: warpReleasesSchema,
+});
+
+const { header, open, release } = props.parse(Astro.props);
+
+const getPrettyLinuxName = (platform: string) => {
+	const platformInfo = platforms.find((p) => p.platform === platform);
+
+	if (platformInfo) {
+		return platformInfo.display_name;
+	}
+
+	return platform;
+};
+
+// [platform, package size, display name], sorted by display name.
+const sortPlatforms = (sizes: Record<string, number> = {}) =>
+	Object.entries(sizes)
+		.map(
+			([platform, size]) =>
+				[platform, size, getPrettyLinuxName(platform)] as const,
+		)
+		.sort((a, b) => a[2].localeCompare(b[2]));
+
+// The Linux packages this release ships. `path` is appended to the version
+// download URL, which serves the full package when nothing follows it.
+const linuxPackages = [
+	{
+		label: "cloudflare-warp",
+		path: "",
+		platforms: sortPlatforms(release.linuxPlatforms),
+	},
+	{
+		label: "cloudflare-mesh",
+		path: "/packages/headless",
+		platforms: sortPlatforms(release.linuxHeadlessPlatforms),
+	},
+].filter((linuxPackage) => linuxPackage.platforms.length > 0);
+
+const downloadBase = `${new URL(release.packageURL).origin}/v1/download`;
+const firstPackage = linuxPackages.at(0);
+const firstPlatform = firstPackage?.platforms.at(0);
+const packageSize = firstPlatform?.[1] ?? release.packageSize;
+
+const selectClass =
+	"border-border bg-background text-foreground hover:border-foreground/20 focus-visible:ring-primary/50 h-9 appearance-none rounded-md border pr-9 pl-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none";
+const caretClass =
+	"text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2";
+---
+
+<Details header={header} open={open}>
+	<warp-download
+		data-download-base={downloadBase}
+		data-version={release.version}
+		data-packages={JSON.stringify(linuxPackages)}
+	>
+		<p>
+			<div class="flex gap-2">
+				<span>
+					<strong>Version: </strong>
+					{release.platformName} {release.version}
+				</span>
+				<span>
+					<strong>Date: </strong>
+					{release.releaseDate.toISOString().split("T")[0]}
+				</span>
+				{packageSize && (
+					<span>
+						<strong>Size: </strong>
+						<span data-size>{prettyBytes(packageSize)}</span>
+					</span>
+				)}
+			</div>
+		</p>
+		<div class="my-3 flex flex-wrap items-center gap-3">
+			{firstPackage && firstPlatform ? (
+				<>
+					{linuxPackages.length > 1 && (
+						<div class="relative inline-flex">
+							<select
+								data-package
+								aria-label="Select Linux package"
+								autocomplete="off"
+								class={selectClass}
+							>
+								{linuxPackages.map((linuxPackage, index) => (
+									<option value={index}>{linuxPackage.label}</option>
+								))}
+							</select>
+							<Icon
+								name="ph:caret-down"
+								aria-hidden="true"
+								class={caretClass}
+							/>
+						</div>
+					)}
+					<div class="relative inline-flex">
+						<select
+							data-platform
+							aria-label="Select Linux distribution"
+							autocomplete="off"
+							class={selectClass}
+						>
+							{firstPackage.platforms.map(([platform, , name]) => (
+								<option value={platform}>{name}</option>
+							))}
+						</select>
+						<Icon name="ph:caret-down" aria-hidden="true" class={caretClass} />
+					</div>
+					<LinkButton
+						variant="primary"
+						size="base"
+						data-linux-download
+						href={`${downloadBase}/${firstPlatform[0]}/version/${release.version}${firstPackage.path}`}
+					>
+						Download
+					</LinkButton>
+				</>
+			) : (
+				<LinkButton variant="primary" size="base" href={release.packageURL}>
+					Download
+				</LinkButton>
+			)}
+		</div>
+		<p>
+			<span>
+				<h4>Release notes</h4>
+			</span>
+			<Fragment set:html={renderMarkdown(release.releaseNotes)} />
+		</p>
+	</warp-download>
+</Details>
+
+<script>
+	import prettyBytes from "pretty-bytes";
+
+	type LinuxPackage = {
+		path: string;
+		platforms: [platform: string, size: number, name: string][];
+	};
+
+	class WarpDownload extends HTMLElement {
+		connectedCallback() {
+			const packages: LinuxPackage[] = JSON.parse(
+				this.dataset.packages as string,
+			);
+			const packageSelect = this.querySelector<HTMLSelectElement>(
+				"select[data-package]",
+			);
+			const platformSelect = this.querySelector<HTMLSelectElement>(
+				"select[data-platform]",
+			);
+
+			if (!platformSelect) return;
+
+			const selectedPackage = () => packages[Number(packageSelect?.value ?? 0)];
+
+			const updateDownload = () => {
+				const linuxPackage = selectedPackage();
+				const platform = linuxPackage.platforms.find(
+					([name]) => name === platformSelect.value,
+				);
+
+				if (!platform) return;
+
+				this.querySelector<HTMLAnchorElement>(
+					"a[data-linux-download]",
+				)?.setAttribute(
+					"href",
+					`${this.dataset.downloadBase}/${platform[0]}/version/${this.dataset.version}${linuxPackage.path}`,
+				);
+
+				const size = this.querySelector<HTMLSpanElement>("span[data-size]");
+
+				if (size) size.textContent = prettyBytes(platform[1]);
+			};
+
+			packageSelect?.addEventListener("change", () => {
+				// Packages can cover different distributions, so the list follows
+				// the package and keeps the current distribution when it can.
+				const previous = platformSelect.value;
+				const { platforms } = selectedPackage();
+
+				platformSelect.replaceChildren(
+					...platforms.map(([platform, , name]) => new Option(name, platform)),
+				);
+
+				if (platforms.some(([platform]) => platform === previous)) {
+					platformSelect.value = previous;
+				}
+
+				updateDownload();
+			});
+
+			platformSelect.addEventListener("change", updateDownload);
+		}
+	}
+
+	customElements.define("warp-download", WarpDownload);
+</script>

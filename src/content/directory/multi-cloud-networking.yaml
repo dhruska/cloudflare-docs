@@ -1,0 +1,9 @@
+id: jNiJyW
+name: Multi-Cloud Networking
+
+entry:
+  title: Multi-Cloud Networking
+  url: /changelog/product/multi-cloud-networking/
+  show: false
+  group: Cloudflare One
+  additional_groups: [Network security]

@@ -1,0 +1,21 @@
+---
+{}
+---
+
+import { DashButton, TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+To view members using the dashboard:
+
+In the Cloudflare dashboard, go to the **Members** page.
+
+The Members overview page shows each member's invitation status, Super Administrator status, API access setting, and whether they have 2FA enabled, including email 2FA.
+
+    <DashButton url="/?to=/:account/members" />
+
+</TabItem> <TabItem label="API">
+
+To view members using the API, send a [`GET` request](/api/resources/accounts/subresources/members/methods/list/).
+
+</TabItem> </Tabs>

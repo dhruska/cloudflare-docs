@@ -1,0 +1,140 @@
+---
+title: TypeScript example
+styleGuide:
+  component: TypeScriptExample
+description: Show TypeScript and auto-transpiled JavaScript tabs.
+products:
+  - style-guide
+---
+
+## TypeScript examples
+
+The `TypeScriptExample` component uses [`ts-blank-space`](https://github.com/bloomberg/ts-blank-space) to remove TypeScript-specific syntax from your example and provide a JavaScript tab. This reduces maintenance burden by only having a single example to maintain.
+
+:::note
+Some TypeScript syntax influences runtime behaviour, and cannot be stripped.
+
+Please refer to the [Unsupported Syntax](https://github.com/bloomberg/ts-blank-space?tab=readme-ov-file#unsupported-syntax) section of the project's README.
+:::
+
+:::caution
+Code blocks are typically configured with options on the opening fence, like so:
+
+````mdx
+```ts collapse={1-2}
+// ...
+```
+````
+
+These cannot be extracted by `TypeScriptExample` so they must be moved to the [`code`](#code) prop.
+
+````mdx
+<TypeScriptExample code={{
+  collapse: "1-2"
+}}>
+```ts
+// ...
+```
+</TypeScriptExample>
+````
+:::
+
+## Type definitions
+
+Do not use `TypeScriptExample` for a snippet that only contains types, such as a `type` alias, an `interface`, or a `declare` statement. Types have no JavaScript equivalent, so the JavaScript tab would be empty. Use a plain `ts` code block instead:
+
+````mdx
+```ts
+type WorkflowInstanceEvent = {
+	instanceId: string;
+	timestamp: string;
+};
+```
+````
+
+The build fails if a `TypeScriptExample` produces an empty JavaScript tab.
+
+## Component
+
+````mdx
+import { TypeScriptExample } from "~/components";
+
+<TypeScriptExample code={{
+  collapse: "1-2"
+}}>
+```ts
+// comment to demonstrate
+// collapsible sections
+interface Environment {
+  KV: KVNamespace;
+}
+
+export default {
+  async fetch(req, env, ctx): Promise<Response> {
+    if (req !== "POST") {
+        return new Response("Method Not Allowed", {
+            status: 405,
+            headers: {
+                "Allow": "POST"
+            }
+        });
+    }
+
+    await env.KV.put("foo", "bar");
+
+    return new Response();
+  }
+} satisfies ExportedHandler<Environment>
+```
+</TypeScriptExample>
+````
+
+
+## `<TypeScriptExample>` Props
+
+### `filename`
+
+**type:** `string`
+
+An optional filename, ending in `.ts`.
+
+`.ts` will be replaced by `.js` for the JavaScript tab.
+
+### `playground`
+
+**type:** `boolean`
+
+If set to `true`, a [`Run Worker in Playground`](/style-guide/style-and-grammar/formatting/code-block-guidelines/#workers-playground) button will appear on the JavaScript tab.
+
+### `omitTabs`
+
+**type:** `boolean`
+
+If set to `true`, the JavaScript and TypeScript tabs render without their own `Tabs` wrapper. Use this to place them inside a parent `Tabs` component next to other languages, for example a Python tab:
+
+````mdx
+<Tabs syncKey="workersExamples">
+
+<TypeScriptExample omitTabs={true}>
+```ts
+export class MyDurableObject extends DurableObject<Env> {}
+```
+</TypeScriptExample>
+
+<TabItem label="Python">
+```python
+class MyDurableObject(DurableObject):
+    pass
+```
+</TabItem>
+
+</Tabs>
+````
+
+### `code`
+
+**type**: `object`
+
+Props to pass to the [Astro `Code` component](https://docs.astro.build/en/reference/api-reference/#code-).
+
+These props will apply to both code blocks and so options like `collapse` may not work as expected, as lines may be removed from the TypeScript code.

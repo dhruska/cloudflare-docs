@@ -1,0 +1,108 @@
+---
+pcx_content_type: how-to
+title: Deployment management
+head: []
+description: Upload versions independently and control when and how they are deployed to your Worker's traffic.
+products:
+  - workers
+sidebar:
+  order: 1
+---
+
+import { DashButton, PackageManagers } from "~/components";
+
+By default, these operations create a version and deploy it to 100% of traffic:
+
+- [`wrangler deploy`](/workers/wrangler/commands/workers/#deploy)
+- [Workers Builds](/workers/ci-cd/builds/)
+- The [Workers Script Upload API](/api/resources/workers/subresources/scripts/methods/update/)
+
+You can upload a version without deploying it. This allows you to choose when to send traffic to it.
+
+Deployment changes take up to a few seconds to reach every location on the network. Deploying to 100% of traffic does not make every location switch at once. A browser's HTML and asset requests can still use different versions. Refer to [Version skew and static assets](/workers/versions-and-deployments/version-skew/).
+
+## Upload a version without deploying
+
+### Via Wrangler
+
+Use the [`wrangler versions upload`](/workers/wrangler/commands/workers/#versions-upload) command:
+
+<PackageManagers type="exec" pkg="wrangler" args="versions upload" />
+
+:::note
+Wrangler versions before 3.73.0 require you to specify a `--x-versions` flag.
+:::
+
+:::note
+To apply changes to a Worker's triggers ([routes, domains](/workers/configuration/routing/), or [cron triggers](/workers/configuration/cron-triggers/)), use the [`wrangler triggers deploy`](/workers/wrangler/commands/workers/#triggers-deploy) command.
+:::
+
+### Via the Cloudflare dashboard
+
+1. In the Cloudflare dashboard, go to the **Workers & Pages** page.
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. Select your Worker > **Edit code**.
+3. Make your changes, then select the **down arrow** next to **Deploy** > **Save**.
+
+:::note
+New versions are not created when you make changes to [resources connected to your Worker](/workers/runtime-apis/bindings/). For example, if two Workers (Worker A and Worker B) are connected via a [service binding](/workers/runtime-apis/bindings/service-bindings/), changing the code of Worker B will not create a new version of Worker A. Changes to the service binding configuration (such as deleting the binding or updating the [environment](/workers/wrangler/environments/) it points to) on Worker A will also not create a new version of Worker B.
+:::
+
+## Deploy an uploaded version
+
+Once you have uploaded a version, you can create a deployment that routes traffic to it.
+
+Uploading a version does not add it to a deployment. To test it on your production hostname with a [version override](/workers/versions-and-deployments/version-overrides/), add it to the deployment. You can set it to 0% of traffic. You can also turn on a [Version URL](/workers/versions-and-deployments/version-urls/) to access the uploaded version separately.
+
+### Via Wrangler
+
+Use the [`wrangler versions deploy`](/workers/wrangler/commands/workers/#versions-deploy) command and follow the interactive prompts to select the version and set it to 100%:
+
+<PackageManagers type="exec" pkg="wrangler" args="versions deploy" />
+
+You can also set the traffic percentage to less than 100% to start a [gradual deployment](/workers/versions-and-deployments/gradual-deployments/).
+
+### Via the Cloudflare dashboard
+
+1. In the Cloudflare dashboard, go to the **Workers & Pages** page.
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. Select your Worker > **Deployments**.
+3. Select **Promote deployment** and choose the version you want to deploy.
+
+### Via Infrastructure as Code
+
+You can also create versions and deployments directly with the API, library SDKs, and Terraform. Refer to [Infrastructure as Code](/workers/platform/infrastructure-as-code/) for examples.
+
+## In-flight requests
+
+A deployment changes which versions receive new requests. Requests already executing can continue running the version that accepted them. Deploying new code does not update code in an invocation that has already started.
+
+A successful deployment does not confirm that earlier invocations or their external operations have completed. If a release requires earlier work to finish, coordinate that in your application before making incompatible data or configuration changes.
+
+Existing requests remain subject to the [invocation duration rules](/workers/platform/limits/#duration) and [`ctx.waitUntil()` limits](/workers/runtime-apis/context/#waituntil). The grace period for [Workers runtime updates](/workers/platform/limits/#runtime-updates) applies when Cloudflare updates the runtime, rather than when you deploy your code.
+
+Durable Objects have separate [code update behavior](/durable-objects/deployments/durable-objects-code-updates/).
+
+## Limits
+
+### Deployments limit
+
+You can only create a deployment with the last 100 uploaded versions of your Worker.
+
+### First upload
+
+You must use [C3](/workers/get-started/guide/#1-create-a-new-worker-project) or [`wrangler deploy`](/workers/wrangler/commands/workers/#deploy) the first time you create a new Workers project. Using [`wrangler versions upload`](/workers/wrangler/commands/workers/#versions-upload) the first time you upload a Worker will fail.
+
+### Service worker syntax
+
+Service worker syntax is not supported for versions that are uploaded through [`wrangler versions upload`](/workers/wrangler/commands/workers/#versions-upload). You must use ES modules format.
+
+Refer to [Migrate from Service Workers to ES modules](/workers/reference/migrate-to-module-workers/#advantages-of-migrating) to learn how to migrate your Workers from the service worker format to the ES modules format.
+
+### Durable Object migrations
+
+Uploading a version that changes Durable Object class lifecycle is not supported. This applies to both the declarative [`exports`](/durable-objects/reference/durable-objects-migrations/) field and the legacy [`migrations`](/durable-objects/reference/durable-object-class-migrations-legacy/) array - any change that creates, deletes, renames, or transfers a Durable Object class must be applied through [`wrangler deploy`](/workers/wrangler/commands/workers/#deploy).
